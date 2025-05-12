@@ -1,10 +1,9 @@
-const express = require("express"); // ✅ Built-in module first
-const { getUsers, getUser, createUser } = require("../controllers/users"); // ✅ Local module after
+const router = require("express").Router();
+const { auth } = require("../middlewares/auth");
 
-const router = express.Router();
+const { getCurrentUser, updateProfile } = require("../controllers/users");
 
-router.get("/", getUsers);
-router.get("/:userId", getUser);
-router.post("/", createUser);
+router.get("/me", auth, getCurrentUser);
+router.patch("/me", auth, updateProfile);
 
 module.exports = router;
