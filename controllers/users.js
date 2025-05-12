@@ -31,7 +31,9 @@ const createUser = (req, res) => {
           .status(CONFLICT_ERROR)
           .send({ message: "Duplicate email. (409)" });
       }
-      return res.status(SERVER_ERROR).send({ message: err.message });
+      return res
+        .status(SERVER_ERROR)
+        .send({ message: "An error has occurred on the server" });
     });
 };
 
@@ -48,7 +50,9 @@ const getCurrentUser = (req, res) => {
       if (err.name === "CastError") {
         return res.status(BAD_REQUEST).send({ message: err.message });
       }
-      return res.status(SERVER_ERROR).send({ message: err.message });
+      return res
+        .status(SERVER_ERROR)
+        .send({ message: "An error has occurred on the server" });
     });
 };
 
@@ -56,7 +60,9 @@ const login = (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
-    return res.status(400).send({ message: "Email and password are required" });
+    return res
+      .status(BAD_REQUEST)
+      .send({ message: "Email and password are required" });
   }
   return User.findUserByCredentials(email, password)
     .then((user) => {
@@ -66,13 +72,22 @@ const login = (req, res) => {
       res.send({ token });
     })
     .catch((err) => {
-      res.status(401).send({ message: err.message });
+      if (err.message === "Incorrect email or password") {
+        return res
+          .status(UNAUTHORIZED)
+          .send({ message: "Incorrect email or password" });
+      }
+
+      return res
+        .status(SERVER_ERROR)
+        .send({ message: "An error has occurred on the server" });
     });
 };
 
 const updateProfile = (req, res) => {
   const userId = req.user._id;
   const { name, avatar } = req.body;
+
   User.findByIdAndUpdate(
     userId,
     { name, avatar },
@@ -82,13 +97,26 @@ const updateProfile = (req, res) => {
     .then((user) => res.send({ data: user }))
     .catch((err) => {
       console.error(err);
+
+      if (err.name === "ValidationError") {
+        return res
+          .status(BAD_REQUEST)
+          .send({ message: "Invalid data provided for profile update" });
+      }
+
       if (err.name === "DocumentNotFoundError") {
-        return res.status(NOT_FOUND).send({ message: err.message });
+        return res.status(NOT_FOUND).send({ message: "User not found" });
       }
+
       if (err.name === "CastError") {
-        return res.status(BAD_REQUEST).send({ message: err.message });
+        return res
+          .status(BAD_REQUEST)
+          .send({ message: "Invalid user ID format" });
       }
-      return res.status(SERVER_ERROR).send({ message: err.message });
+
+      return res
+        .status(SERVER_ERROR)
+        .send({ message: "An error has occurred on the server" });
     });
 };
 
