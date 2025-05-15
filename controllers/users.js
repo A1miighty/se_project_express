@@ -8,6 +8,7 @@ const {
   BAD_REQUEST,
   NOT_FOUND,
   CONFLICT_ERROR,
+  UNAUTHORIZED,
 } = require("../utils/errors");
 
 const createUser = (req, res) => {
@@ -22,7 +23,6 @@ const createUser = (req, res) => {
         .send({ name: user.name, avatar: user.avatar, email: user.email })
     )
     .catch((err) => {
-      console.error(err);
       if (err.name === "ValidationError") {
         return res.status(BAD_REQUEST).send({ message: err.message });
       }
@@ -43,7 +43,6 @@ const getCurrentUser = (req, res) => {
     .orFail()
     .then((user) => res.status(200).send(user))
     .catch((err) => {
-      console.error(err);
       if (err.name === "DocumentNotFoundError") {
         return res.status(NOT_FOUND).send({ message: err.message });
       }
@@ -96,8 +95,6 @@ const updateProfile = (req, res) => {
     .orFail()
     .then((user) => res.send({ data: user }))
     .catch((err) => {
-      console.error(err);
-
       if (err.name === "ValidationError") {
         return res
           .status(BAD_REQUEST)
