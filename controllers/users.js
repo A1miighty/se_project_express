@@ -23,8 +23,7 @@ const createUser = (req, res) => {
         name: user.name,
         avatar: user.avatar,
         email: user.email,
-      });
-      
+      })
     )
     .catch((err) => {
       if (err.name === "ValidationError") {
