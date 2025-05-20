@@ -1,5 +1,5 @@
 const router = require("express").Router();
-const auth = require("../middlewares/auth");
+const { NOT_FOUND } = require("../utils/errors"); // Import constant
 const userRouter = require("./users");
 const itemRouter = require("./clothingItems");
 const { login, createUser } = require("../controllers/users");
@@ -7,14 +7,13 @@ const { login, createUser } = require("../controllers/users");
 router.post("/signin", login);
 router.post("/signup", createUser);
 
-router.use(auth); // protect routes below
-
+// ✅ Routes (each file will apply `auth` where needed)
 router.use("/users", userRouter);
 router.use("/items", itemRouter);
 
-// Catch-all for 404
+// ✅ 404 Handler using constant
 router.use("*", (req, res) => {
-  res.status(404).send({ message: "Router not found" });
+  res.status(NOT_FOUND).send({ message: "Router not found" });
 });
 
 module.exports = router;
