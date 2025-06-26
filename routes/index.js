@@ -1,18 +1,18 @@
-const router = require("express").Router();
-const { NOT_FOUND } = require("../utils/errors"); // Import constant
-const userRouter = require("./users");
-const itemRouter = require("./clothingItems");
-const { login, createUser } = require("../controllers/users");
+const express = require("express");
 
+const router = express.Router();
+const { login, createUser } = require("../controllers/users");
+const usersRoute = require("./users");
+const clothingItem = require("./clothingItem");
+const { NOT_FOUND } = require("../utils/constants");
+
+// Public routes
 router.post("/signin", login);
 router.post("/signup", createUser);
+router.use("/items", clothingItem);
+router.use("/users", usersRoute);
 
-// ✅ Routes (each file will apply `auth` where needed)
-router.use("/users", userRouter);
-router.use("/items", itemRouter);
-
-// ✅ 404 Handler using constant
-router.use("*", (req, res) => {
+router.use((req, res) => {
   res.status(NOT_FOUND).send({ message: "Router not found" });
 });
 

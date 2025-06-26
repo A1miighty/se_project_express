@@ -1,143 +1,120 @@
-const ClothingItem = require("../models/clothingItems");
+const mongoose = require("mongoose");
+
+const ClothingItem = require("../models/clothingItem");
+
 const {
   BAD_REQUEST,
-  SERVER_ERROR,
   NOT_FOUND,
+  DEFAULT,
   FORBIDDEN,
-} = require("../utils/errors");
+  UNAUTHORIZED,
+} = require("../utils/constants");
+
+// Ensure authentication middleware is used before these controllers in your route definitions
+const createItem = (req, res) => {
+  if (!req.user || !req.user.id) {
+    return res.status(UNAUTHORIZED).json({ message: "Authorization required" });
+  }
+  const { name, weather, imageUrl } = req.body;
+  const owner = req.user.id;
+
+  return ClothingItem.create({ name, weather, imageUrl, owner })
+    .then((item) => res.status(201).json(item))
+    .catch((e) => {
+      if (e.name === "ValidationError") {
+        return res.status(BAD_REQUEST).json({ message: e.message });
+      }
+      return res.status(DEFAULT).json({ message: "Error from createItem" });
+    });
+};
 
 const getItems = (req, res) => {
   ClothingItem.find({})
-    .then((items) => res.json(items)) // ✅ 200 is implied
-    .catch(() => {
-      res.status(SERVER_ERROR).send({
-        message: "An error has occurred on the server",
-      });
-    });
-};
-
-const getItem = (req, res) => {
-  ClothingItem.findById(req.params.itemId)
-    .orFail(() => {
-      const error = new Error("Clothing item not found");
-      error.statusCode = NOT_FOUND;
-      throw error;
-    })
-    .then((item) => res.json(item)) // ✅ 200 is implied
-    .catch((err) => {
-      if (err.name === "CastError") {
-        return res.status(BAD_REQUEST).send({ message: "Invalid item ID" });
-      }
-      if (err.statusCode === NOT_FOUND) {
-        return res.status(NOT_FOUND).send({ message: err.message });
-      }
-      return res
-        .status(SERVER_ERROR)
-        .send({ message: "An error has occurred on the server" });
-    });
-};
-
-const createItem = (req, res) => {
-  const { name, weather, imageUrl } = req.body;
-  const owner = req.user._id;
-
-  ClothingItem.create({ name, weather, imageUrl, owner })
-    .then((item) => res.status(201).json(item)) // ✅ 201 for creation
-    .catch((err) => {
-      if (err.name === "ValidationError") {
-        return res.status(BAD_REQUEST).send({ message: "Invalid input data" });
-      }
-      return res
-        .status(SERVER_ERROR)
-        .send({ message: "An error has occurred on the server" });
-    });
+    .then((items) => res.status(200).send(items))
+    .catch(() => res.status(DEFAULT).send({ message: "Error from getItems" }));
 };
 
 const deleteItem = (req, res) => {
-  const userId = req.user._id;
   const { itemId } = req.params;
 
-  ClothingItem.findById(itemId)
+  if (!mongoose.Types.ObjectId.isValid(itemId)) {
+    return res.status(BAD_REQUEST).json({ message: "Invalid item ID" });
+  }
+
+  return ClothingItem.findById(itemId)
     .then((item) => {
       if (!item) {
-        return res
-          .status(NOT_FOUND)
-          .json({ message: "Clothing item not found" });
+        return res.status(NOT_FOUND).json({ message: "Item not found" });
       }
-
-      if (item.owner.toString() !== userId) {
+      if (item.owner.toString() !== req.user.id.toString()) {
         return res
           .status(FORBIDDEN)
-          .json({ message: "You do not have permission to delete this item" });
+          .json({ message: "Forbidden: You can only delete your own items" });
       }
-
-      return item
-        .deleteOne()
-        .then(() => res.json({ message: "Item deleted successfully" }));
+      return ClothingItem.findByIdAndDelete(itemId).then((deletedItem) =>
+        res.status(200).send({ data: deletedItem })
+      );
     })
-    .catch((err) => {
-      if (err.name === "CastError") {
-        return res.status(BAD_REQUEST).json({ message: "Invalid item ID" });
-      }
-      return res
-        .status(SERVER_ERROR)
-        .json({ message: "An error has occurred on the server" });
+    .catch((e) => {
+      res.status(DEFAULT).send({ message: "Error from deleteItem", e });
     });
 };
+
 const likeItem = (req, res) => {
-  ClothingItem.findByIdAndUpdate(
-    req.params.itemId,
-    { $addToSet: { likes: req.user._id } }, // Prevents duplicates
+  const { itemId } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(itemId)) {
+    return res.status(BAD_REQUEST).json({ message: "Invalid item ID 1" });
+  }
+
+  return ClothingItem.findByIdAndUpdate(
+    itemId,
+    { $addToSet: { likes: req.user.id } },
     { new: true }
   )
-    .orFail(() => {
-      const error = new Error("Clothing item not found");
-      error.statusCode = NOT_FOUND;
-      throw error;
+    .then((item) => {
+      if (!item) {
+        return res.status(NOT_FOUND).json({ message: "Item not found" });
+      }
+      return res.status(200).send({ data: item });
     })
-    .then((item) => res.json(item)) // ✅ 200 is implied
-    .catch((err) => {
-      if (err.name === "CastError") {
-        return res.status(BAD_REQUEST).json({ message: "Invalid item ID" });
-      }
-      if (err.statusCode === NOT_FOUND) {
-        return res.status(NOT_FOUND).json({ message: err.message });
-      }
-      return res
-        .status(SERVER_ERROR)
-        .json({ message: "An error has occurred on the server" });
-    });
+    .catch((e) =>
+      res.status(DEFAULT).send({ message: "Error from dislikeItem", e })
+    );
 };
 
 const dislikeItem = (req, res) => {
-  ClothingItem.findByIdAndUpdate(
-    req.params.itemId,
-    { $pull: { likes: req.user._id } }, // Removes user's like
+  const { itemId } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(itemId)) {
+    return res.status(BAD_REQUEST).json({ message: "Invalid item ID" });
+  }
+  return ClothingItem.findByIdAndUpdate(
+    itemId,
+    { $pull: { likes: req.user.id } },
     { new: true }
   )
-    .orFail(() => {
-      const error = new Error("Clothing item not found");
-      error.statusCode = NOT_FOUND;
-      throw error;
+    .then((item) => {
+      if (!item) {
+        return res.status(NOT_FOUND).json({ message: "Item not found" });
+      }
+      return res.status(200).send({ data: item });
     })
-    .then((item) => res.json(item)) // ✅ 200 is implied
-    .catch((err) => {
-      if (err.name === "CastError") {
-        return res.status(BAD_REQUEST).json({ message: "Invalid item ID" });
-      }
-      if (err.statusCode === NOT_FOUND) {
-        return res.status(NOT_FOUND).json({ message: err.message });
-      }
-      return res
-        .status(SERVER_ERROR)
-        .json({ message: "An error has occurred on the server" });
-    });
+    .catch((e) =>
+      res.status(DEFAULT).send({ message: "Error from dislikeItem", e })
+    );
 };
 
 module.exports = {
-  getItems,
-  getItem,
   createItem,
+  getItems,
+  deleteItem,
+  likeItem,
+  dislikeItem,
+};
+module.exports = {
+  createItem,
+  getItems,
   deleteItem,
   likeItem,
   dislikeItem,

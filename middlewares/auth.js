@@ -1,24 +1,39 @@
 const jwt = require("jsonwebtoken");
 const { JWT_SECRET } = require("../utils/config");
-const { UNAUTHORIZED } = require("../utils/errors");
+const { UNAUTHORIZED } = require("../utils/constants");
 
-const auth = (req, res, next) => {
+module.exports = (req, res, next) => {
+  let token;
   const { authorization } = req.headers;
 
-  if (!authorization || !authorization.startsWith("Bearer")) {
-    return res.status(UNAUTHORIZED).send({ message: "Authorization required" });
+  // Check for token in Authorization header
+  if (authorization && authorization.startsWith("Bearer ")) {
+    token = authorization.replace("Bearer ", "");
   }
-  const token = authorization.replace("Bearer ", "");
-  let payload;
+
+  // If no token in header, check for token in query parameters
+  if (!token && req.query.token) {
+    token = req.query.token;
+  }
+
+  // If no token in query, check for token in request body
+  if (!token && req.body.token) {
+    token = req.body.token;
+  }
+
+  console.log("Token:", token);
+
+  if (!token) {
+    return res
+      .status(UNAUTHORIZED)
+      .json({ message: "Authorization required " });
+  }
 
   try {
-    payload = jwt.verify(token, JWT_SECRET);
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.user = payload; // Add user payload to request
+    return next();
   } catch (err) {
-    return res.status(UNAUTHORIZED).send({ message: "Authorization required" });
+    return res.status(UNAUTHORIZED).json({ message: "Authorization required" }); // <-- use .json()
   }
-
-  req.user = payload;
-  return next();
 };
-
-module.exports = auth;
