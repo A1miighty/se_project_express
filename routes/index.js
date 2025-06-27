@@ -3,7 +3,7 @@ const express = require("express");
 const router = express.Router();
 const { login, createUser } = require("../controllers/users");
 const usersRoute = require("./users");
-const clothingItem = require("./clothingItem");
+const clothingItem = require("./clothingItems");
 const { NOT_FOUND } = require("../utils/constants");
 
 // Public routes

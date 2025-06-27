@@ -7,7 +7,7 @@ const {
   deleteItem,
   likeItem,
   dislikeItem,
-} = require("../controllers/clothingItem");
+} = require("../controllers/clothingItems");
 const auth = require("../middlewares/auth");
 
 // Protect the create route with auth middleware
