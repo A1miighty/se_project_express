@@ -1,19 +1,28 @@
-# WTWR (What to Wear) Project – Backend
+# 🧰 WTWR API - What to Wear Backend
 
-This is the backend portion of the WTWR web application, built using **Node.js**, **Express**, and **MongoDB**.
+This is the **backend** for the *What to Wear* (WTWR) application.  
+It’s an Express.js server that provides secure, RESTful API endpoints for handling users, clothing items, and weather-based recommendations.
 
-## 🔗 Backend Repository
+---
 
-[GitHub Repository: se_project_express](https://github.com/A1miighty/se_project_express)
+## 🚀 Technologies Used
 
-## 🚀 How to Run the Project Locally
+- **Node.js**
+- **Express.js**
+- **MongoDB + Mongoose**
+- **dotenv** – for environment variable management
+- **cors** – for enabling cross-origin requests
+- **helmet** – for securing HTTP headers
+- **jsonwebtoken (JWT)** – for user authentication
+- **bcryptjs** – for password hashing
+- **Celebrate + Joi** – for request validation
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/A1miighty/se_project_express.git
-   cd se_project_express
+---
 
+## ⚙️ Setup Instructions
 
-## Conclusion
+### 1. Clone the Repository
 
-This back-end project serves as the foundation for the **WTWR** application, enabling user profile management, clothing item management, and social interaction features with robust error handling and clean code practices.
+```bash
+git clone https://github.com/your-username/se_project_express.git
+cd se_project_express
