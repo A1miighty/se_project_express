@@ -1,185 +1,117 @@
-const validator = require("validator");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const User = require("../models/user");
 const { JWT_SECRET } = require("../utils/config");
+const User = require("../models/user");
+
 const {
-  BAD_REQUEST,
-  NOT_FOUND,
-  DEFAULT,
-  UNAUTHORIZED,
-  CONFLICT,
-} = require("../utils/constants");
-
-// GET /users
-
-const getCurrentUser = (req, res) => {
-  if (!req.user || !req.user.id) {
-    return res
-      .status(UNAUTHORIZED)
-      .json({ message: "Authorization required " });
-  }
-  return User.findById(req.user.id)
-    .then((user) =>
-      !user
-        ? res.status(UNAUTHORIZED).json({ message: "User not found" })
-        : res.status(200).json({
-            id: user.id,
-            name: user.name,
-            avatar: user.avatar,
-            email: user.email,
-          })
-    )
-    .catch(() =>
-      res.status(DEFAULT).json({ message: "Error from getCurrentUser" })
-    );
-};
-// POST /users
+  PAGE_NOT_FOUND,
+  REQUEST_COMPLETED_SUCCESSFULLY,
+  YOUR_DATA_IS_CREATED,
+  SERVER_MALFUNCTION,
+  BAD_REQUEST_STATUS_CODE,
+  UNAUTHORIZED_ACCESS,
+  CONFLICT_ERROR,
+} = require("../utils/errors");
 
 const createUser = (req, res) => {
-  const { name, avatar, password, email } = req.body;
+  const { name, avatar, email, password } = req.body;
+  bcrypt
+    .hash(password, 10)
+    .then((hash) => User.create({ name, avatar, email, password: hash }))
 
-  // Validate name
-  if (typeof name !== "string" || name.length < 2) {
-    return res.status(BAD_REQUEST).json({
-      message: "Name must be at least 2 characters long",
-    });
-  }
-  if (name.length > 30) {
-    return res.status(BAD_REQUEST).json({
-      message: "Name must be at most 30 characters long",
-    });
-  }
-
-  // Validate avatar
-  if (avatar && (typeof avatar !== "string" || !validator.isURL(avatar))) {
-    return res
-      .status(BAD_REQUEST)
-      .json({ message: "Avatar must be a valid URL" });
-  }
-
-  // Validate email
-  if (typeof email !== "string" || !validator.isEmail(email)) {
-    return res
-      .status(BAD_REQUEST)
-      .json({ message: "Email must be a valid email address" });
-  }
-
-  // Validate password
-  if (typeof password !== "string" || password.length < 8) {
-    return res
-      .status(BAD_REQUEST)
-      .json({ message: "Password must be at least 8 characters long" });
-  }
-
-  // Check for duplicate email BEFORE hashing
-  return User.findOne({ email })
-    .then((existingUser) =>
-      existingUser
-        ? res.status(CONFLICT).json({ message: "Email already exists" })
-        : bcrypt
-            .hash(password, 10)
-            .then((hash) =>
-              User.create({ name, avatar, email, password: hash }).then(
-                (user) =>
-                  res.status(200).json({
-                    id: user.id,
-                    name: user.name,
-                    avatar: user.avatar,
-                    email: user.email,
-                  })
-              )
-            )
-            .catch((err) => {
-              console.error(err);
-              if (err.name === "ValidationError") {
-                return res.status(BAD_REQUEST).json({ message: err.message });
-              }
-              return res
-                .status(DEFAULT)
-                .json({ message: "An error occurred on the server." });
-            })
-    )
+    .then((user) => {
+      const { password: userPassword, ...userWithoutPassword } =
+        user.toObject();
+      res.status(YOUR_DATA_IS_CREATED).send(userWithoutPassword);
+    })
     .catch((err) => {
       console.error(err);
-      return res
-        .status(DEFAULT)
-        .json({ message: "An error occurred on the server." });
+      if (err.name === "ValidationError") {
+        return res
+          .status(BAD_REQUEST_STATUS_CODE)
+          .send({ message: err.message });
+      }
+      if (err.code === 11000) {
+        return res
+          .status(CONFLICT_ERROR)
+          .send({ message: "User already exists" });
+      }
+      return res.status(SERVER_MALFUNCTION).send({ message: err.message });
     });
 };
 
-const login = (req, res) => {
+const getCurrentUser = (req, res) => {
+  const userId = req.user._id;
+
+  User.findById(userId)
+    .orFail()
+    .then((user) => res.status(REQUEST_COMPLETED_SUCCESSFULLY).send(user))
+    .catch((err) => {
+      if (err.name === "DocumentNotFoundError") {
+        return res.status(PAGE_NOT_FOUND).send({ message: "User not found" });
+      }
+      if (err.name === "CastError") {
+        return res
+          .status(BAD_REQUEST_STATUS_CODE)
+          .send({ message: "Invalid user ID format" });
+      }
+      return res.status(SERVER_MALFUNCTION).send({ message: err.message });
+    });
+};
+
+const login = async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
     return res
-      .status(BAD_REQUEST)
-      .send({ message: "Email and password are required" });
+      .status(BAD_REQUEST_STATUS_CODE)
+      .send({ message: "The password and email fields are required" });
   }
 
-  // Validate email format
-  if (typeof email !== "string" || !validator.isEmail(email)) {
+  try {
+    const user = await User.findUserByCredentials(email, password);
+    const token = jwt.sign({ _id: user._id }, JWT_SECRET, {
+      expiresIn: "7d",
+    });
+    return res.send({ token });
+  } catch (err) {
+    if (err.message === "Incorrect email or password") {
+      return res
+        .status(UNAUTHORIZED_ACCESS)
+        .send({ message: "Incorrect email or password" });
+    }
     return res
-      .status(BAD_REQUEST)
-      .json({ message: "Email must be a valid email address" });
+      .status(SERVER_MALFUNCTION)
+      .send({ message: "An error occurred on the server" });
   }
-
-  return User.findUserByCredentials(email, password)
-    .then((user) => {
-      // authentication successful! user is in the user variable
-      const token = jwt.sign({ id: user.id }, JWT_SECRET, {
-        expiresIn: "7d",
-      });
-      res.status(200).send({ token });
-    })
-    .catch(() =>
-      // authentication error
-      res.status(UNAUTHORIZED).json({ message: "Invalid email or password " })
-    );
 };
 
-// PATCH
 const updateProfile = (req, res) => {
-  if (!req.user || !req.user.id) {
-    return res.status(UNAUTHORIZED).json({ message: "Authorization required" });
-  }
-
-  // Log incoming request data
-  console.log("Request body:", req.body);
-
   const { name, avatar } = req.body;
 
-  return User.findByIdAndUpdate(
-    req.user.id,
+  User.findByIdAndUpdate(
+    req.user._id,
     { name, avatar },
     { new: true, runValidators: true }
   )
     .then((user) => {
-      if (!user) {
-        return res.status(NOT_FOUND).json({ message: "User not found" });
-      }
-      const updatedUser = {
-        id: user.id,
-        name: user.name,
-        avatar: user.avatar,
-        email: user.email,
-      };
-      // Log outgoing response data
-      console.log("Updated user:", updatedUser);
-      return res.status(200).json(updatedUser);
+      res.json(user);
     })
     .catch((err) => {
       if (err.name === "ValidationError") {
-        return res.status(BAD_REQUEST).json({ message: err.message });
+        return res
+          .status(BAD_REQUEST_STATUS_CODE)
+          .send({ message: "Invalid data" });
+      }
+      if (err.name === "CastError") {
+        return res
+          .status(BAD_REQUEST_STATUS_CODE)
+          .send({ message: "Invalid ID" });
       }
       return res
-        .status(DEFAULT)
-        .json({ message: "An error occurred on the server." });
+        .status(SERVER_MALFUNCTION)
+        .send({ message: "An error has occurred on the server" });
     });
 };
-module.exports = {
-  getCurrentUser,
-  createUser,
-  login,
-  updateProfile,
-};
+
+module.exports = { createUser, getCurrentUser, login, updateProfile };
