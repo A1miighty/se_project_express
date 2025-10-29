@@ -1,42 +1,39 @@
 const jwt = require("jsonwebtoken");
-const { UNAUTHORIZED_ACCESS } = require("../utils/errors");
 const { JWT_SECRET } = require("../utils/config");
+const { UNAUTHORIZED } = require("../utils/constants");
 
-const auth = (req, res, next) => {
-  const publicRoutes = [
-    { method: "POST", path: "/signin" },
-    { method: "POST", path: "/signup" },
-    { method: "GET", path: "/items" },
-  ];
-
-  const isPublicRoute = publicRoutes.some(
-    (route) => req.method === route.method && req.path === route.path
-  );
-
-  if (isPublicRoute) {
-    return next();
-  }
-
+module.exports = (req, res, next) => {
+  let token;
   const { authorization } = req.headers;
 
-  if (!authorization || !authorization.startsWith("Bearer")) {
-    return res
-      .status(UNAUTHORIZED_ACCESS)
-      .send({ message: "Authorization required" });
+  // Check for token in Authorization header
+  if (authorization && authorization.startsWith("Bearer ")) {
+    token = authorization.replace("Bearer ", "");
   }
 
-  const token = authorization.replace("Bearer ", "");
+  // If no token in header, check for token in query parameters
+  if (!token && req.query.token) {
+    token = req.query.token;
+  }
+
+  // If no token in query, check for token in request body
+  if (!token && req.body.token) {
+    token = req.body.token;
+  }
+
+  console.log("Token:", token);
+
+  if (!token) {
+    return res
+      .status(UNAUTHORIZED)
+      .json({ message: "Authorization required " });
+  }
 
   try {
     const payload = jwt.verify(token, JWT_SECRET);
-
-    req.user = payload;
+    req.user = payload; // Add user payload to request
     return next();
   } catch (err) {
-    return res
-      .status(UNAUTHORIZED_ACCESS)
-      .send({ message: "Authorization required" });
+    return res.status(UNAUTHORIZED).json({ message: "Authorization required" }); // <-- use .json()
   }
 };
-
-module.exports = auth;
